@@ -1,0 +1,69 @@
+#!/usr/bin/env bash
+
+set -eufo pipefail
+trap 'echo "$0: error at line ${LINENO}: >$(cat $0 | sed -n "${LINENO}p")<"; exit 1' ERR
+
+while getopts "p:s:rif:t:" options; do case $options in
+  p) page="$OPTARG" ;;
+  s) pagesize="$OPTARG" ;;
+  r) rawoutput="1" ;;
+  i) showinfo="1" ;;
+  f) from_date="$OPTARG" ;;
+  t) to_date="$OPTARG" ;;
+esac; done; shift $((OPTIND - 1))
+
+[[ -r ~/.$(basename ${0})rc ]] && { source ~/.$(basename ${0})rc; }
+
+: ${rawoutput:="0"}
+: ${showinfo:="0"}
+: ${page:="0"}
+: ${pagesize:="20"}
+: ${host:="http://hn.algolia.com/api/v1"}
+
+  from_filter="${from_date:+",created_at_i>$(date -d "${from_date}" +%s)"}"
+  to_filter="${to_date:+",created_at_i<$(date -d "${to_date}" +%s)"}"
+  all_filters="${from_filter}${to_filter}"
+
+if [[ "$#" -eq 0 ]];then :
+
+elif [[ "$1" == "test" ]];then shift
+  :
+
+elif [[ "$1" == "search" ]];then shift
+  : ${query:="$@"}
+
+  response="$(curl -s \
+    "${host}/search_by_date?\
+query=$(urlencode ${query})\
+&restrictSearchableAttributes=title\
+&page=${page}\
+&hitsPerPage=${pagesize}\
+&tags=story\
+${all_filters:+"&numericFilters=${all_filters}"}\
+")"
+
+  if [[ "$rawoutput" -eq 1 ]];then
+    echo "$response"
+  else
+    jq -c \
+      '.hits|map({created_at,points,title,url})[]' \
+      <<<"$response"
+    if [[ "$showinfo" -eq 1 ]];then
+    jq -r \
+      '.|"page \(.page) of \(.nbPages) (\(.nbHits))"' \
+      <<<"$response"
+    fi
+
+  fi
+
+elif [[ "$1" == "item" ]];then shift
+  : ${item_id:="$1"}
+
+  response="$(curl -s \
+    "${host}/items/${item_id}"
+  )"
+
+  echo "$response"
+
+fi
+
