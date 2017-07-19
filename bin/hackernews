@@ -3,13 +3,14 @@
 set -eufo pipefail
 trap 'echo "$0: error at line ${LINENO}: >$(cat $0 | sed -n "${LINENO}p")<"; exit 1' ERR
 
-while getopts "p:s:rif:t:" options; do case $options in
+while getopts "p:s:rif:t:c:" options; do case $options in
   p) page="$OPTARG" ;;
   s) pagesize="$OPTARG" ;;
   r) rawoutput="1" ;;
   i) showinfo="1" ;;
   f) from_date="$OPTARG" ;;
   t) to_date="$OPTARG" ;;
+  c) point_count="$OPTARG" ;;
 esac; done; shift $((OPTIND - 1))
 
 [[ -r ~/.$(basename ${0})rc ]] && { source ~/.$(basename ${0})rc; }
@@ -19,10 +20,12 @@ esac; done; shift $((OPTIND - 1))
 : ${page:="0"}
 : ${pagesize:="20"}
 : ${host:="http://hn.algolia.com/api/v1"}
+: ${point_count:="0"}
 
   from_filter="${from_date:+",created_at_i>$(date -d "${from_date}" +%s)"}"
   to_filter="${to_date:+",created_at_i<$(date -d "${to_date}" +%s)"}"
-  all_filters="${from_filter}${to_filter}"
+  point_filter="${point_count:+",points>=${point_count}"}"
+  all_filters="${from_filter}${to_filter}${point_filter}"
 
 if [[ "$#" -eq 0 ]];then :
 
